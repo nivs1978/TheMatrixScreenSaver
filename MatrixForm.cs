@@ -1,9 +1,32 @@
-﻿using System;
+﻿/********************************************************************************
+ *                                                                              *
+ *                           This file is part of                               *
+ *                           The Matrix screen saver                            *
+ *                                                                              *
+ *  Copyright (c) 2024 Hans Milling                                             *
+ *                                                                              *
+ *  The Matrix screen saver is free software: you can redistribute it and/or    *
+ *  modify it under the terms of the GNU General Public License as published by *
+ *  the Free Software Foundation, either version 3 of the License, or           *
+ *  (at your option) any later version.                                         *
+ *                                                                              *
+ *  The Matrix screen saver is distributed in the hope that it will be useful,  *
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of              *
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the                *
+ *  GNU General Public License for more details. You should have received a     *
+ *  copy of the GNU General Public License along with The Matrix screen saver.  *
+ *  If not, see http://www.gnu.org/licenses/.                                   *
+ *                                                                              *
+ ********************************************************************************/
+
+
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Drawing.Text;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace TheMatrix
@@ -13,12 +36,11 @@ namespace TheMatrix
         // From observing the original movie, this logic has been applied (not all attempts of matrix screen savers found online, follow the original in the movie)
         // - It does not look like a rain drop can dop in an already active rain drop
         // - All rain drops have the same speed
-        // 
 
         readonly Random r = new();
-        readonly int fontSize = 24;
-        readonly Font f;
-        readonly Graphics g;
+        int fontSize = 24;
+        Font f;
+        Graphics g;
         // This forum answer was used to get the characters for the screen saver: https://scifi.stackexchange.com/questions/137575/is-there-a-list-of-the-symbols-shown-in-the-matrixthe-symbols-rain-how-many/182823#182823
         const string arabicNumerals = "٠١٢٣٤٥٦٧٨٩١٠";
         const string punctuations = ":.\"=*+-¦|_╌";
@@ -34,14 +56,24 @@ namespace TheMatrix
         const int columnHeightMultiplier = 2; // a rain drop can only survive maximum of the same time it took to fall the entire screen length when compared to how it behaves in the movie 
         const float fontSqueezing = 0.8f; // The unicode font has too much "air" on the sides, so we squeeze them a bit together to makre it look more true to the original
         const int rainDropSpeedMs = 3000; // From the movie it looks like each rain drop takes approximatly 3 seconds from top to bottom of screen
-        readonly int ColumnHeight; // Calculated during initialization based on screen size and font size
-        readonly TheMatrix theMatrix; // Holds whats goin on in the matrix
-        readonly Bitmap[] whiteChars; // Predrawn characters as bitmaps
-        readonly Bitmap[] greenChars;
-        readonly Bitmap[] fadedChars;
-        readonly List<int> activeColumns = new(); // Active columns of drops of rain
-        readonly List<int> availableColumns = new(); // Columns that curretly has no rain drops
-        readonly Brush blackBrush = new SolidBrush(Color.Black);
+        int ColumnHeight; // Calculated during initialization based on screen size and font size
+        TheMatrix theMatrix; // Holds whats goin on in the matrix
+        Bitmap[] whiteChars; // Predrawn characters as bitmaps
+        Bitmap[] greenChars;
+        Bitmap[] fadedChars;
+        List<int> activeColumns = new(); // Active columns of drops of rain
+        List<int> availableColumns = new(); // Columns that curretly has no rain drops
+        Brush blackBrush = new SolidBrush(Color.Black);
+        private Point lastMousePosition;
+
+        [DllImport("user32.dll")]
+        static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
+        [DllImport("user32.dll")]
+        static extern int SetWindowLong(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+        [DllImport("user32.dll", SetLastError = true)]
+        static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+        [DllImport("user32.dll")]
+        static extern bool GetClientRect(IntPtr hWnd, out Rectangle lpRect);
 
         private class Column
         {
@@ -54,7 +86,7 @@ namespace TheMatrix
         {
             public int CharNo; // Index in the bitmap array
             public bool Faded; // if character is 50% faded away (dark green)
-            public int Timer; // How many frames the character has been displayed on screen
+            public int Timer; // How many frames the character has been displayed on screen, when reaching 0 it will not be displayed anymore
         }
 
         private class TheMatrix
@@ -62,15 +94,13 @@ namespace TheMatrix
             public List<Column> Columns = new();
         }
 
-        public MatrixForm()
+        private void Initialize()
         {
-            InitializeComponent();
+            this.MouseWheel += new MouseEventHandler(MatrixForm_MouseClick);
             // Go full screen
+            lastMousePosition = Cursor.Position;
             Cursor.Hide();
-            this.Width = Screen.PrimaryScreen.Bounds.Width;
-            this.Height = Screen.PrimaryScreen.Bounds.Height;
-            this.Location = new Point(0, 0);
-            // Create GDI+ drawing canvas from from
+            // Create GDI+ drawing canvas from form
             g = this.CreateGraphics();
             g.Clear(Color.Black);
             // Setup font and constants based on monitor resolution
@@ -81,7 +111,7 @@ namespace TheMatrix
             var size = g.MeasureString("日", f);
 
             ColumnHeight = this.Height / fontSize;
-            TimerDraw.Interval = rainDropSpeedMs / ColumnHeight; // Calculate character drop delay based on desired speed and screen height
+            //////////TimerDraw.Interval = rainDropSpeedMs / ColumnHeight; // Calculate character drop delay based on desired speed and screen height
             // Start with "empty" matrix, character -1 = blank character
             theMatrix = new TheMatrix();
             for (int x = 0; x < ColumnCount; x++)
@@ -104,6 +134,27 @@ namespace TheMatrix
                 greenChars[i] = CharacterToBitmap(i, Color.Lime); // Color of the majority of characters
                 fadedChars[i] = CharacterToBitmap(i, Color.DarkGreen); // Some characters are randomly faded 50% or dark green
             }
+        }
+
+        public MatrixForm(int screenIndex)
+        {
+            InitializeComponent();
+            this.Bounds = Screen.AllScreens[screenIndex].Bounds;
+            Initialize();
+        }
+
+        public MatrixForm(IntPtr PreviewWndHandle)
+        {
+            InitializeComponent();
+
+            SetParent(this.Handle, PreviewWndHandle);
+            SetWindowLong(this.Handle, -16, new IntPtr(GetWindowLong(this.Handle, -16) | 0x40000000));
+            Rectangle ParentRect;
+            GetClientRect(PreviewWndHandle, out ParentRect);
+            Size = ParentRect.Size;
+            Location = new Point(0, 0);
+
+            Initialize();
         }
 
         // Generate a bitmap from a character and color. All characters in the matrix screensaver are mirrored, so we also make sure to draw mirrored
@@ -238,6 +289,32 @@ namespace TheMatrix
         private void TimerDraw_Tick(object sender, EventArgs e)
         {
             UpdateTheMatrix();
+        }
+
+        private void MatrixForm_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            e.Handled = true;
+            this.Close();
+        }
+
+        private void MatrixForm_MouseMove(object sender, MouseEventArgs e)
+        {
+            var movement = Math.Max(Math.Abs(e.X - lastMousePosition.X), Math.Abs(e.Y - lastMousePosition.Y));
+            lastMousePosition = e.Location;
+            if (movement > 20)
+            {
+                this.Close();
+            }
+        }
+
+        private void MatrixForm_MouseClick(object sender, MouseEventArgs e)
+        {
+            this.Close();
+        }
+
+        private void MatrixForm_Scroll(object sender, ScrollEventArgs e)
+        {
+            this.Close();
         }
     }
 }
