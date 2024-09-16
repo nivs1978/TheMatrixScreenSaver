@@ -13,9 +13,9 @@ namespace TheMatrix
         private int formCount;
         MatrixForm[] forms;
 
-        public TheMatrixApplicationContext(int formCount)
+        public TheMatrixApplicationContext()
         {
-            this.formCount = formCount;
+            formCount = Screen.AllScreens.Count();
 
             forms = new MatrixForm[formCount];
 

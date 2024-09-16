@@ -67,7 +67,7 @@ namespace TheMatrix
                 }
                 else if (arg == "/s") // Run screensaverin full screen mode
                 {
-                    TheMatrixApplicationContext context = new(Screen.AllScreens.Count());
+                    TheMatrixApplicationContext context = new();
                     Application.Run(context);
                 }
             }

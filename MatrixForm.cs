@@ -111,7 +111,7 @@ namespace TheMatrix
             var size = g.MeasureString("日", f);
 
             ColumnHeight = this.Height / fontSize;
-            //////////TimerDraw.Interval = rainDropSpeedMs / ColumnHeight; // Calculate character drop delay based on desired speed and screen height
+            TimerDraw.Interval = rainDropSpeedMs / ColumnHeight; // Calculate character drop delay based on desired speed and screen height
             // Start with "empty" matrix, character -1 = blank character
             theMatrix = new TheMatrix();
             for (int x = 0; x < ColumnCount; x++)
@@ -299,8 +299,8 @@ namespace TheMatrix
 
         private void MatrixForm_MouseMove(object sender, MouseEventArgs e)
         {
-            var movement = Math.Max(Math.Abs(e.X - lastMousePosition.X), Math.Abs(e.Y - lastMousePosition.Y));
-            lastMousePosition = e.Location;
+            var movement = Math.Max(Math.Abs(Cursor.Position.X - lastMousePosition.X), Math.Abs(Cursor.Position.Y - lastMousePosition.Y));
+            lastMousePosition = Cursor.Position;
             if (movement > 20)
             {
                 this.Close();
