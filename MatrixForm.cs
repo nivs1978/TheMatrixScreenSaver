@@ -86,7 +86,7 @@ namespace TheMatrix
         {
             public int CharNo; // Index in the bitmap array
             public bool Faded; // if character is 50% faded away (dark green)
-            public int Timer; // How many frames the character has been displayed on screen, when reaching 0 it will not be displayed anymore
+            public int FrameCount; // How many frames the character has been displayed on screen, when reaching 0 it will not be displayed anymore
         }
 
         private class TheMatrix
@@ -120,7 +120,7 @@ namespace TheMatrix
                 var column = new Column() { Timeout = r.Next(ColumnHeight, ColumnHeight * columnHeightMultiplier) };
                 for (var y = 0; y < ColumnHeight; y++)
                 {
-                    column.Cells.Add(new Cell { Timer = -1, Faded = false, CharNo = -1 });
+                    column.Cells.Add(new Cell { FrameCount = -1, Faded = false, CharNo = -1 });
                 }
                 theMatrix.Columns.Add(column);
             }
@@ -178,7 +178,7 @@ namespace TheMatrix
         private Cell NewCell()
         {
             int charNo = r.Next(0, allCharacters.Length) - 1;
-            return new Cell { CharNo = charNo, Faded = false, Timer = 0 };
+            return new Cell { CharNo = charNo, Faded = false, FrameCount = 0 };
         }
 
         // Print character on screen based on cell information
@@ -186,11 +186,11 @@ namespace TheMatrix
         {
             int x = (int)(col * fontSize * fontSqueezing);
             int y = row * fontSize;
-            if (c.Timer == -1 || c.CharNo == -1) // If character is blank or timer is up (end of rain drop), clear the square on screen
+            if (c.FrameCount == -1 || c.CharNo == -1) // If character is blank or timer is up (end of rain drop), clear the square on screen
             {
                 g.FillRectangle(blackBrush, x, y, fontSize * fontSqueezing, fontSize);
             }
-            else if (c.Timer == 0) // First time the character is displayed (leading rain drop)
+            else if (c.FrameCount == 0) // First time the character is displayed (leading rain drop)
             {
                 g.DrawImageUnscaled(whiteChars[c.CharNo], x, y);
             }
@@ -215,9 +215,9 @@ namespace TheMatrix
                 for (int row = ColumnHeight - 1; row >= 0; row--) // Go trough the column from bottom to top
                 {
                     var cell = column.Cells[row];
-                    if (cell.Timer >= 0) // Only look at cells that contain a character
+                    if (cell.FrameCount >= 0) // Only look at cells that contain a character
                     {
-                        if (cell.Timer == 0) // 0 means that we are at the bottom of the rain drop
+                        if (cell.FrameCount == 0) // 0 means that we are at the bottom of the rain drop
                         {
                             if (row < ColumnHeight - 1) // If we are not at the bottom of the screen, draw a new character below the current
                             {
@@ -226,12 +226,12 @@ namespace TheMatrix
                                 PrintCell(col, row + 1, cNew);
                             }
                             var cCurrent = column.Cells[row]; // Increase timer of the current character
-                            cCurrent.Timer++;
+                            cCurrent.FrameCount++;
                             PrintCell(col, row, cCurrent);
                         }
-                        else if (cell.Timer > column.Timeout) // Character has been too long on the screen, remove it
+                        else if (cell.FrameCount > column.Timeout) // Character has been too long on the screen, remove it
                         {
-                            var c = new Cell { Timer = -1, Faded = false, CharNo = -1 };
+                            var c = new Cell { FrameCount = -1, Faded = false, CharNo = -1 };
                             column.Cells[row] = c;
                             PrintCell(col, row, c);
                             if (row == ColumnHeight - 1)
@@ -255,7 +255,7 @@ namespace TheMatrix
                                 cell.Faded = true;
                                 changed = true;
                             }
-                            cell.Timer++;
+                            cell.FrameCount++;
                             if (changed) // only redraw if caracter is changed
                             {
                                 PrintCell(col, row, cell);
